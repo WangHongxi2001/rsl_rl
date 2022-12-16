@@ -54,6 +54,8 @@ class OnPolicyRunner:
         self.policy_cfg = train_cfg["policy"]
         self.device = device
         self.env = env
+        print("---alg_cfg", self.alg_cfg)
+        print("---policy_cfg", self.policy_cfg)
         if self.env.num_privileged_obs is not None:
             num_critic_obs = self.env.num_privileged_obs 
         else:
@@ -90,6 +92,7 @@ class OnPolicyRunner:
         privileged_obs = self.env.get_privileged_observations()
         critic_obs = privileged_obs if privileged_obs is not None else obs
         obs, critic_obs = obs.to(self.device), critic_obs.to(self.device)
+        # ???
         self.alg.actor_critic.train() # switch to train mode (for dropout for example)
 
         ep_infos = []
