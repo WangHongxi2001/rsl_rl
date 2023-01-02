@@ -83,6 +83,9 @@ class RolloutStorage:
         self.saved_hidden_states_a = None
         self.saved_hidden_states_c = None
 
+        self.rewards_buf = []
+        self.episode_length_buf = []
+
         self.step = 0
 
     def add_transitions(self, transition: Transition):

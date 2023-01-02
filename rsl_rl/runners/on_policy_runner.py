@@ -131,6 +131,9 @@ class OnPolicyRunner:
                 # Learning step
                 start = stop
                 self.alg.compute_returns(critic_obs)
+
+            self.alg.storage.rewards_buf.append(statistics.mean(rewbuffer))
+            self.alg.storage.episode_length_buf.append(statistics.mean(lenbuffer))
             
             mean_value_loss, mean_surrogate_loss = self.alg.update()
             stop = time.time()
