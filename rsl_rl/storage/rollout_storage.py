@@ -85,6 +85,10 @@ class RolloutStorage:
 
         self.rewards_buf = []
         self.episode_length_buf = []
+        self.mean_value_loss_buf = []
+        self.mean_surrogate_loss_buf = []
+        self.mean_entropy_buf = []
+        self.mean_kl_buf = []
 
         self.step = 0
 

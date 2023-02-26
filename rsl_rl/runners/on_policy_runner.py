@@ -131,11 +131,8 @@ class OnPolicyRunner:
                 # Learning step
                 start = stop
                 self.alg.compute_returns(critic_obs)
-
-            self.alg.storage.rewards_buf.append(statistics.mean(rewbuffer))
-            self.alg.storage.episode_length_buf.append(statistics.mean(lenbuffer))
             
-            mean_value_loss, mean_surrogate_loss = self.alg.update()
+            mean_value_loss, mean_surrogate_loss, mean_entropy, mean_kl = self.alg.update()
             stop = time.time()
             learn_time = stop - start
             if self.log_dir is not None:
@@ -143,6 +140,19 @@ class OnPolicyRunner:
             if it % self.save_interval == 0:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
             ep_infos.clear()
+
+            if len(rewbuffer) > 0:
+                self.alg.storage.rewards_buf.append(statistics.mean(rewbuffer))
+            else:
+                self.alg.storage.rewards_buf.append(0)
+            if len(lenbuffer) > 0:
+                self.alg.storage.episode_length_buf.append(statistics.mean(lenbuffer))
+            else:
+                self.alg.storage.episode_length_buf.append(0)
+            self.alg.storage.mean_value_loss_buf.append(mean_value_loss)
+            self.alg.storage.mean_surrogate_loss_buf.append(mean_surrogate_loss)
+            self.alg.storage.mean_entropy_buf.append(mean_entropy)
+            self.alg.storage.mean_kl_buf.append(mean_kl)
         
         self.current_learning_iteration += num_learning_iterations
         self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(self.current_learning_iteration)))
@@ -165,7 +175,7 @@ class OnPolicyRunner:
                     infotensor = torch.cat((infotensor, ep_info[key].to(self.device)))
                 value = torch.mean(infotensor)
                 self.writer.add_scalar('Episode/' + key, value, locs['it'])
-                ep_string += f"""{f'Mean episode {key}:':>{pad}} {value:.4f}\n"""
+                ep_string += f"""{f'Mean {key}:':>{pad}} {value:.4f}\n"""
         mean_std = self.alg.actor_critic.std.mean()
         fps = int(self.num_steps_per_env * self.env.num_envs / (locs['collection_time'] + locs['learn_time']))
 
