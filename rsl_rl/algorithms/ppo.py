@@ -51,12 +51,14 @@ class PPO:
                  use_clipped_value_loss=True,
                  schedule="fixed",
                  desired_kl=0.01,
+                 early_stop = False,
                  device='cpu',
                  ):
 
         self.device = device
 
         self.desired_kl = desired_kl
+        self.early_stop = early_stop
         self.schedule = schedule
         self.learning_rate = learning_rate
 
@@ -118,6 +120,7 @@ class PPO:
         self.storage.compute_returns(last_values, self.gamma, self.lam)
 
     def update(self):
+        num_updates = 0
         mean_value_loss = 0
         mean_surrogate_loss = 0
         mean_entropy = 0
@@ -137,13 +140,15 @@ class PPO:
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
 
-                # KL
-                if self.desired_kl != None and self.schedule == 'adaptive':
+                if self.schedule == 'adaptive' or self.early_stop == True:
                     with torch.inference_mode():
                         kl = torch.sum(
                             torch.log(sigma_batch / old_sigma_batch + 1.e-5) + (torch.square(old_sigma_batch) + torch.square(old_mu_batch - mu_batch)) / (2.0 * torch.square(sigma_batch)) - 0.5, axis=-1)
                         kl_mean = torch.mean(kl)
 
+                # KL
+                if self.desired_kl != None and self.schedule == 'adaptive':
+                    with torch.inference_mode():
                         if kl_mean > self.desired_kl * 2.0:
                             self.learning_rate = max(1e-5, self.learning_rate / 1.5)
                         elif kl_mean < self.desired_kl / 2.0 and kl_mean > 0.0:
@@ -151,6 +156,11 @@ class PPO:
                         
                         for param_group in self.optimizer.param_groups:
                             param_group['lr'] = self.learning_rate
+
+                if self.desired_kl != None and self.early_stop:
+                    if kl_mean > self.desired_kl * 1.5:
+                        print("early stop, num_updates =", num_updates)
+                        break
 
 
                 # Surrogate loss
@@ -179,12 +189,13 @@ class PPO:
                 nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
+                num_updates += 1
                 mean_value_loss += value_loss.item()
                 mean_surrogate_loss += surrogate_loss.item()
                 mean_entropy += entropy_batch_mean.item()
                 mean_kl += kl_mean.item()
 
-        num_updates = self.num_learning_epochs * self.num_mini_batches
+        #num_updates = self.num_learning_epochs * self.num_mini_batches
         mean_value_loss /= num_updates
         mean_surrogate_loss /= num_updates
         mean_entropy /= num_updates
