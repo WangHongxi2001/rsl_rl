@@ -43,6 +43,7 @@ class ActorCritic(nn.Module):
                         actor_hidden_dims=[256, 256, 256],
                         critic_hidden_dims=[256, 256, 256],
                         activation='elu',
+                        orthogonal_init=False,
                         init_noise_std=1.0,
                         **kwargs):
         if kwargs:
@@ -57,12 +58,20 @@ class ActorCritic(nn.Module):
         # Policy
         actor_layers = []
         actor_layers.append(nn.Linear(mlp_input_dim_a, actor_hidden_dims[0]))
+        if orthogonal_init:
+            torch.nn.init.orthogonal_(actor_layers[-1].weight, np.sqrt(2))
         actor_layers.append(activation)
         for l in range(len(actor_hidden_dims)):
             if l == len(actor_hidden_dims) - 1:
                 actor_layers.append(nn.Linear(actor_hidden_dims[l], num_actions))
+                if orthogonal_init:
+                    torch.nn.init.orthogonal_(actor_layers[-1].weight, 0.01)
+                    torch.nn.init.constant_(actor_layers[-1].bias, 0.0)
             else:
                 actor_layers.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
+                if orthogonal_init:
+                    torch.nn.init.orthogonal_(actor_layers[-1].weight, np.sqrt(2))
+                    torch.nn.init.constant_(actor_layers[-1].bias, 0.0)
                 actor_layers.append(activation)
         self.actor = nn.Sequential(*actor_layers)
 
