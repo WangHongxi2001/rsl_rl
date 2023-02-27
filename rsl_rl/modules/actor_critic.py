@@ -50,6 +50,8 @@ class ActorCritic(nn.Module):
             print("ActorCritic.__init__ got unexpected arguments, which will be ignored: " + str([key for key in kwargs.keys()]))
         super(ActorCritic, self).__init__()
 
+        self.orthogonal_init = orthogonal_init
+
         activation = get_activation(activation)
 
         mlp_input_dim_a = num_actor_obs
@@ -58,18 +60,18 @@ class ActorCritic(nn.Module):
         # Policy
         actor_layers = []
         actor_layers.append(nn.Linear(mlp_input_dim_a, actor_hidden_dims[0]))
-        if orthogonal_init:
+        if self.orthogonal_init:
             torch.nn.init.orthogonal_(actor_layers[-1].weight, np.sqrt(2))
         actor_layers.append(activation)
         for l in range(len(actor_hidden_dims)):
             if l == len(actor_hidden_dims) - 1:
                 actor_layers.append(nn.Linear(actor_hidden_dims[l], num_actions))
-                if orthogonal_init:
+                if self.orthogonal_init:
                     torch.nn.init.orthogonal_(actor_layers[-1].weight, 0.01)
                     torch.nn.init.constant_(actor_layers[-1].bias, 0.0)
             else:
                 actor_layers.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
-                if orthogonal_init:
+                if self.orthogonal_init:
                     torch.nn.init.orthogonal_(actor_layers[-1].weight, np.sqrt(2))
                     torch.nn.init.constant_(actor_layers[-1].bias, 0.0)
                 actor_layers.append(activation)
@@ -91,7 +93,8 @@ class ActorCritic(nn.Module):
         print(f"Critic MLP: {self.critic}")
 
         # Action noise
-        self.std = nn.Parameter(init_noise_std * torch.ones(num_actions))
+        #self.std = nn.Parameter(init_noise_std * torch.ones(num_actions))
+        self.logstd = nn.Parameter(torch.zeros(num_actions))
         self.distribution = None
         # disable args validation for speedup
         Normal.set_default_validate_args = False
@@ -127,7 +130,7 @@ class ActorCritic(nn.Module):
 
     def update_distribution(self, observations):
         mean = self.actor(observations)
-        self.distribution = Normal(mean, mean*0. + self.std)
+        self.distribution = Normal(mean, mean*0. + torch.exp(self.logstd))
 
     def act(self, observations, **kwargs):
         self.update_distribution(observations)

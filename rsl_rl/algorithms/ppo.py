@@ -52,6 +52,7 @@ class PPO:
                  schedule="fixed",
                  desired_kl=0.01,
                  early_stop = False,
+                 anneal_lr = False,
                  device='cpu',
                  ):
 
@@ -61,6 +62,7 @@ class PPO:
         self.early_stop = early_stop
         self.schedule = schedule
         self.learning_rate = learning_rate
+        self.anneal_lr = anneal_lr
 
         # PPO components
         self.actor_critic = actor_critic
@@ -140,6 +142,7 @@ class PPO:
                 sigma_batch = self.actor_critic.action_std
                 entropy_batch = self.actor_critic.entropy
 
+                kl_mean = torch.tensor(0, device=self.device, requires_grad=False)
                 if self.schedule == 'adaptive' or self.early_stop == True:
                     with torch.inference_mode():
                         kl = torch.sum(
@@ -182,6 +185,10 @@ class PPO:
 
                 entropy_batch_mean = entropy_batch.mean()
                 loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch_mean
+
+                if self.anneal_lr:
+                    frac = 1.0 - num_updates/(self.num_learning_epochs * self.num_mini_batches)
+                    self.optimizer.param_groups[0]["lr"] = frac * self.learning_rate
 
                 # Gradient step
                 self.optimizer.zero_grad()
